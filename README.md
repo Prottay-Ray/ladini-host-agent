@@ -53,6 +53,10 @@ curl -s "http://$(./bin/ladini-agent vm status --ip):8080"
 ./bin/ladini-agent vm down         # stops the VM and destroys its disk
 ```
 
+For a step-by-step walkthrough with the output you should expect at each
+stage — including a side-by-side against a plain `docker run` — see
+[`TESTING.md`](TESTING.md).
+
 `image build` takes several minutes the first time: it downloads a pinned
 Ubuntu cloud image, converts qcow2 to raw in pure Go (no qemu dependency),
 and boots the guest once to install Docker and the guest agent.
