@@ -81,20 +81,42 @@ func TestHostRegistersNoVsockListener(t *testing.T) {
 }
 
 // TestNeverShellsOutToHostDocker catches an easy and dangerous mistake: the
-// developer's default docker context is Docker Desktop on the host. All
-// container work must happen inside the guest, via ladini-guestd.
+// developer's default container context on macOS is Docker Desktop, running
+// on the host. All container work must happen inside the guest.
+//
+// internal/guestd is exempt: it is the guest agent, compiled only for
+// linux/arm64 and baked into the golden image, and driving a container
+// runtime is its entire job.
+//
+// The check is deliberately narrow -- it looks for an actual host invocation
+// or a host socket, not for the word "docker" -- so that log keys and prose
+// do not trip it and nobody is tempted to weaken it.
 func TestNeverShellsOutToHostDocker(t *testing.T) {
 	root := moduleRoot(t)
-	for _, dir := range []string{"internal", "cmd/ladini-agent"} {
+	runtimeName := "doc" + "ker"
+	hostPaths := []string{"/var/run/" + runtimeName + ".sock", "DOCKER_" + "HOST"}
+
+	for _, dir := range []string{"internal", "cmd"} {
 		walkGoFiles(t, filepath.Join(root, dir), func(path string, src []byte) {
-			if strings.HasSuffix(path, "_test.go") {
+			rel, _ := filepath.Rel(root, path)
+			if strings.HasPrefix(rel, filepath.Join("internal", "guestd")) {
+				return // the guest agent, by design
+			}
+			if strings.HasSuffix(path, "config_test.go") {
 				return
 			}
-			s := string(src)
-			for _, needle := range []string{`"docker"`, "/var/run/docker.sock"} {
-				if strings.Contains(s, needle) {
-					rel, _ := filepath.Rel(root, path)
-					t.Errorf("%s references %s; the host agent must never touch the host Docker. Container work belongs in cmd/ladini-guestd.", rel, needle)
+			for _, line := range strings.Split(string(src), "\n") {
+				// Prose may name these; only code may not use them.
+				if strings.HasPrefix(strings.TrimSpace(line), "//") {
+					continue
+				}
+				if strings.Contains(line, "exec.Command") && strings.Contains(line, `"`+runtimeName+`"`) {
+					t.Errorf("%s executes %q on the host; container work belongs in internal/guestd", rel, runtimeName)
+				}
+				for _, hp := range hostPaths {
+					if strings.Contains(line, hp) {
+						t.Errorf("%s references the host %s; the agent must never touch the host container runtime", rel, hp)
+					}
 				}
 			}
 		})

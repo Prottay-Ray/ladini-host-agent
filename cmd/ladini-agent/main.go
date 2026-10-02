@@ -20,7 +20,17 @@ func main() {
 		Short:        "Host sandbox workloads in an isolated Linux VM",
 		SilenceUsage: true,
 	}
-	root.AddCommand(newDoctorCmd())
+	root.AddCommand(
+		newDoctorCmd(),
+		newImageCmd(),
+		newVMCmd(),
+		newVMMCmd(),
+		newRunCmd(),
+		newPSCmd(),
+		newLogsCmd(),
+		newStopCmd(),
+		newSelfTestCmd(),
+	)
 
 	if err := root.Execute(); err != nil {
 		fmt.Fprintln(os.Stderr, "error:", err)

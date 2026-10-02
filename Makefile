@@ -14,11 +14,17 @@ all: build
 
 build: $(BIN)
 
-$(BIN): $(shell find cmd/ladini-agent internal -name '*.go' 2>/dev/null) go.mod
+# Embedded assets (the in-guest isolation script) are prerequisites too:
+# without them, make considers the binary up to date after an asset-only edit
+# and silently bakes a stale script into the golden image.
+GO_SRC    := $(shell find cmd internal -name '*.go' 2>/dev/null)
+ASSETS    := $(shell find internal -type f ! -name '*.go' 2>/dev/null)
+
+$(BIN): $(GO_SRC) $(ASSETS) go.mod
 	CGO_ENABLED=1 go build -o $(BIN) ./cmd/ladini-agent
 	codesign --force --sign $(SIGN_ID) --entitlements $(ENTS) --options runtime $(BIN)
 
-guestd:
+guestd: $(GO_SRC)
 	GOOS=linux GOARCH=arm64 CGO_ENABLED=0 go build -o $(GUEST_BIN) ./cmd/ladini-guestd
 
 # H1: exactly one entitlement, and it is the virtualization one.
